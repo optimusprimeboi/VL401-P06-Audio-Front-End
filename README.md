@@ -86,19 +86,8 @@ VL401_Group06_P06_Submission/
 │   ├── zybo_z7_top.bit         # Ready-to-program bitstream for Zybo Z7-10
 │   └── zybo_z7_audio.xsa       # Hardware handoff platform for Vitis/embedded software
 │
-├── docs/                       # Technical Comparison Tables & Plots
-│   ├── adder_count_table.md    # Multiplier-Block (CSD vs CSE vs U3) comparison
-│   ├── architecture_benchmark_table.md # Folded vs Parallel vs Dolecek paper benchmarks
-│   ├── Project_P06_Comprehensive_Comparison_Report.md # Full architecture report
-│   └── plots/                  # Frequency response, ripple, and spectrum plots
-│
-├── report/                     # Course Project Report & Academic Presentation Assets
-│   ├── VL401_G06_P06.tex       # Complete drafted academic LaTeX report
-│   ├── block_diagram.pdf/.png  # High-resolution architectural block diagram
-│   ├── cdfg.pdf/.png           # Control-Data Flow Graph (CDFG) transformations
-│   ├── simulation_waveform.png # Vivado simulation timing waveform
-│   └── snr_plot.png            # Audio SNR (THD+N) plot
-│
+├── VL401_P06.pdf               # Complete 22-Page Final Project Academic Report (PDF)
+├── VL401_G06_P06.pdf           # Primary Report Deliverable (Group 06)
 ├── build_project.tcl           # Automated Vivado project generator and bitstream builder
 ├── pdm_stimulus_words.hex      # 192,000-bit pre-recorded test audio stream
 └── program.hex                 # Compiled RISC-V firmware ROM
