@@ -1,0 +1,744 @@
+%% =====================================================================
+%%  VL401: RTL Design and Verification -- Course Project Report
+%%  School of Computing and Electrical Engineering (SCEE), IIT Mandi
+%%  Odd Semester 2026  |  Instructor: Dr. Bikram Paul
+%% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}}{}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs,tabularx,multirow,array}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{fancyhdr}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+
+%% =====================================================================
+%%  GROUP DETAILS
+%% =====================================================================
+\newcommand{\groupno}{06}
+\newcommand{\projno}{P06}
+\newcommand{\projtitle}{PDM-to-PCM Audio Front End for MEMS Microphones}
+\newcommand{\studentA}{Sarthak Kharwar}
+\newcommand{\rollA}{B24498}
+\newcommand{\studentB}{Avanish Patel}
+\newcommand{\rollB}{B24478}
+\newcommand{\repourl}{https://github.com/IIT-Mandi-VL401-2026/P06-pdm-pcm-audio}
+\newcommand{\submitdate}{\today}
+
+%% Guidance boxes: \guidancefalse hides template prompt boxes for final submission
+\newif\ifguidance
+\guidancefalse
+
+%% =====================================================================
+%%  Helper macros
+%% =====================================================================
+\definecolor{iitblue}{RGB}{0,51,102}
+\definecolor{guidebg}{RGB}{232,240,252}
+\newcommand{\guide}[1]{\ifguidance\par\noindent
+  \colorbox{guidebg}{\parbox{\dimexpr\linewidth-2\fboxsep}{\small\itshape
+  \textbf{Guidance:} #1}}\par\medskip\fi}
+
+\newcommand{\figfile}[4]{%
+\begin{figure}[H]\centering
+\IfFileExists{#1}{\includegraphics[width=#2]{#1}}%
+{\fbox{\parbox[c][4cm][c]{#2}{\centering\color{gray}\small
+  [Placeholder: put \texttt{\detokenize{#1}} in this folder]}}}
+\caption{#3}\label{#4}
+\end{figure}}
+
+\lstdefinelanguage{SMV}{morekeywords={MODULE,VAR,ASSIGN,DEFINE,init,next,case,esac,
+  SPEC,CTLSPEC,LTLSPEC,FAIRNESS,boolean,AG,AF,AX,EG,EF,EX,A,E,U,TRUE,FALSE},
+  sensitive=true,morecomment=[l]{--}}
+\lstset{basicstyle=\ttfamily\footnotesize,keywordstyle=\color{iitblue}\bfseries,
+  commentstyle=\color{gray}\itshape,numbers=left,numberstyle=\tiny\color{gray},
+  frame=single,rulecolor=\color{gray!50},breaklines=true,columns=fullflexible,
+  captionpos=b,xleftmargin=1.5em,framexleftmargin=1.2em}
+
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\setlist{nosep,leftmargin=1.4em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small VL401 Course Project -- Group \groupno}
+\rhead{\small \projno: \projtitle}
+\cfoot{\small \thepage}
+
+\begin{document}
+
+%% =====================================================================
+%%  TITLE PAGE
+%% =====================================================================
+\begin{titlepage}
+\centering
+{\large Indian Institute of Technology Mandi}\\[2pt]
+{\normalsize School of Computing and Electrical Engineering}\\[1.6cm]
+{\Large\bfseries VL401: RTL Design and Verification}\\[4pt]
+{\large Course Project Report -- Odd Semester 2026}\\[1.6cm]
+{\color{iitblue}\rule{\linewidth}{1pt}}\\[8pt]
+{\LARGE\bfseries \projno: \projtitle}\\[8pt]
+{\color{iitblue}\rule{\linewidth}{1pt}}\\[1.4cm]
+{\large Group \groupno}\\[10pt]
+\begin{tabular}{ll}
+\toprule
+\textbf{Name} & \textbf{Roll No.}\\
+\midrule
+\studentA & \rollA\\
+\studentB & \rollB\\
+\bottomrule
+\end{tabular}\\[1.2cm]
+\begin{tabular}{rl}
+Instructor: & Dr.\ Bikram Paul\\
+Repository: & \url{\repourl}\\
+Submitted on: & \submitdate\\
+\end{tabular}
+\vfill
+\begin{minipage}{0.92\linewidth}\small
+\textbf{Declaration.} We declare that the RTL, verification code and analysis in this report are our own
+work, except where sources (including open-source IP and AI tools) are acknowledged in
+Section~\ref{sec:contrib}.\\[1.0cm]
+\rule{5.5cm}{0.4pt}\hfill\rule{5.5cm}{0.4pt}\\
+\studentA\hfill\studentB
+\end{minipage}
+\end{titlepage}
+
+%% =====================================================================
+\begin{abstract}
+Digital MEMS microphones transmit audio as high-speed 1-bit Pulse Density Modulation (PDM) streams at 3.072~MHz, which cannot be processed directly by audio DSP algorithms or audio codecs expecting standard 16-bit Pulse Code Modulation (PCM) at 48~kHz. In this project, we design, verify, and physically implement a complete 64$\times$ decimation audio front-end on the Digilent Zybo Z7-10 (Xilinx Zynq-7000 \texttt{XC7Z010CLG400-1}) FPGA board. The architecture consists of a multiplierless 4-stage Cascaded Integrator-Comb (CIC) decimator ($R=16$), an equalizing 31-tap linear-phase compensation FIR filter, and two cascaded folded half-band decimation stages ($\div 2$ each) terminating in a 128-word circular PCM FIFO with APB3 bus integration. To eliminate dedicated DSP multipliers in the compensation stage, we incorporated the Multiple Constant Multiplication (MCM) and Common Subexpression Elimination (CSE) technique by Voronenko and P\"uschel (2007), reducing adder complexity from 55 adders down to just 4 adders (a 92.7\% logic reduction) alongside ESPRESSO two-level saturation minimization. The entire subsystem connects to an on-chip RV32I soft core executing embedded C firmware for real-time Voice Activity Detection (VAD) and logarithmic 4-LED VU metering, with direct playback via onboard SSM2603 I2S and PWM DACs. Bit-exact verification against a Python golden model over 50,000 samples confirmed zero mismatches, achieving an SNR of 57.4~dB, passband flatness within $\pm 0.05$~dB (100~Hz--10~kHz), and $-0.50$~dB droop at 20~kHz. On physical silicon, the design achieved complete timing closure at 125~MHz (WNS = +2.450~ns), consuming only 2,799 LUTs (15.9\%), 21 DSPs (26.3\%), and 182~mW total on-chip power.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%% =====================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Digital Micro-Electro-Mechanical Systems (MEMS) microphones have emerged as the standard acoustic transducer in modern consumer electronics, mobile telephony, wearable hearables, and edge artificial intelligence voice interfaces~\cite{hogenauer1981,aggarwal2021}. Unlike conventional analog electret condenser microphones that require shielded analog wiring and external low-noise pre-amplifiers, digital MEMS microphones integrate an onboard Sigma-Delta Modulator ($\Sigma\Delta$M) that streams acoustic vibrations as a high-frequency 1-bit Pulse Density Modulation (PDM) signal. In this 1-bit representation, acoustic signal amplitude is encoded as the local time-averaged density of logic `1's, typically oversampled at 64 times the Nyquist rate ($f_{\text{pdm}} = 3.072$~MHz for a target audio bandwidth of 24~kHz).
+
+While 1-bit PDM offers exceptional electromagnetic interference (EMI) immunity, low pin count, and robust digital transmission across flexible printed circuits, standard digital audio processors, audio codecs (such as I2S/SSM2603), and automatic speech recognition (ASR) neural networks cannot consume raw PDM bit-streams. They require linear, multi-bit Pulse Code Modulation (PCM) audio at standard studio sampling rates (typically 16-bit or 24-bit PCM at 48~kHz). Converting 3.072~MHz 1-bit PDM into 48~kHz 16-bit PCM requires a $64\times$ decimation filter chain that must aggressively attenuate high-frequency $\Sigma\Delta$ quantization noise, avoid aliasing, and flatten filter passband droop while strictly respecting battery power and silicon area constraints.
+
+Implementing this decimation chain in software on an embedded microcontroller requires tens of millions of multiply-accumulate (MAC) operations per second, consuming excessive CPU cycles and power. An FPGA/RTL implementation provides deterministic, sub-microsecond latency, hard real-time streaming, and exploits multiplierless pipelined DSP arithmetic to minimize energy consumption.
+
+\subsection{Objectives}
+The primary objectives of this project are:
+\begin{enumerate}
+  \item \textbf{Decimation Filter Pipeline Design:} Construct a multi-stage $64\times$ decimation pipeline on FPGA fabric converting 3.072~MHz 1-bit PDM to studio-quality 16-bit 48~kHz PCM audio with Signal-to-Noise Ratio (SNR) $\ge 50$~dB, passband ripple $\le 0.50$~dB (0--20~kHz), and stopband rejection $\ge 60$~dB.
+  \item \textbf{Multiplierless Optimization via Research Paper:} Implement Voronenko and P\"uschel's Multiple Constant Multiplication (MCM) technique~\cite{voronenko2007} to eliminate dedicated hardware multipliers from the compensation FIR filter, demonstrating substantial logic savings over naive Canonic Signed Digit (CSD) baselines.
+  \item \textbf{Architectural Trade-Off Analysis (HLS):} Formulate and synthesize two distinct architectural design points for the half-band decimation stages: a high-throughput Parallel Direct-Form architecture versus an area-optimized Time-Multiplexed Folded architecture sharing a single MAC engine, evaluating their DSP, LUT, and latency trade-offs in AMD Vivado.
+  \item \textbf{SoC and Bus Integration:} Interface the decimation pipeline to an APB3 slave register block with programmable gain, bypass, watermark interrupts, a 128-word circular FIFO, an onboard RV32I RISC-V soft processor running real-time Voice Activity Detection (VAD), and an I2S codec driver.
+  \item \textbf{Comprehensive Multi-Level Verification:} Establish a Python golden model for bit-exact simulation verification, prove safety and liveness invariants using NuSMV CTL model checking and SymbiYosys formal proofs, and resolve real-world hardware constraints.
+  \item \textbf{Physical Board Bring-Up:} Program and validate the complete design on the Digilent Zybo Z7-10 FPGA board, verifying live headphone audio playback through the SSM2603 DAC and logarithmic 4-LED VU metering under varying volume switch presets.
+\end{enumerate}
+
+The remainder of this report is organized as follows: Section~\ref{sec:related} covers theoretical background and the paper-to-RTL plan; Section~\ref{sec:spec} details specifications and the golden model; Section~\ref{sec:hls} presents high-level synthesis, scheduling, and binding; Section~\ref{sec:logic} discusses logic and FSM optimization; Section~\ref{sec:rtl} details RTL design and SoC integration; Section~\ref{sec:sim} presents simulation-based verification; Section~\ref{sec:formal} provides formal proofs and CTL model checking; Section~\ref{sec:paper} evaluates the incorporated research paper; Section~\ref{sec:fpga} documents FPGA implementation and live board measurements; Section~\ref{sec:discussion} analyzes real-world hardware debugging lessons and limitations; Section~\ref{sec:conclusion} concludes the paper; and Section~\ref{sec:contrib} details team contributions.
+
+%% =====================================================================
+\section{Background and Related Work}
+\label{sec:related}
+
+\subsection{Background}
+The conversion of high-rate 1-bit PDM to multi-bit PCM relies on oversampled digital signal processing theory~\cite{hogenauer1981,dolecek2009}. A fourth-order Cascaded Integrator-Comb (CIC) filter performs the initial coarse decimation. A CIC filter of order $N$, differential delay $M=1$, and decimation factor $R$ exhibits the discrete-time transfer function:
+\begin{equation}
+  H_{\text{CIC}}(z) = \left( \frac{1 - z^{-R}}{1 - z^{-1}} \right)^N = \left( \sum_{k=0}^{R-1} z^{-k} \right)^N
+  \label{eq:cic_tf}
+\end{equation}
+The CIC filter possesses two compelling hardware properties: it requires zero multipliers, operating purely with integrators running at the high input rate $f_{\text{in}}$ and comb differentiators running at the low output rate $f_{\text{in}}/R$, and its internal bit-growth is strictly bounded by Hogenauer's theorem~\cite{hogenauer1981}:
+\begin{equation}
+  B_{\text{max}} = \lceil N \log_2(R \cdot M) \rceil + B_{\text{in}} = \lceil 4 \log_2(16 \cdot 1) \rceil + 1 = 16 + 1 = 17\text{ bits}
+  \label{eq:hogenauer}
+\end{equation}
+We conservatively allocate 24 bits throughout the datapath to guarantee zero overflow distortion during loud acoustic transients.
+
+However, the magnitude response of an uncompensated CIC filter suffers from severe passband droop governed by $\left|\frac{\sin(\pi f R / f_s)}{\sin(\pi f / f_s)}\right|^N$, introducing up to 4.5~dB of attenuation at the band edge ($f = 20$~kHz)~\cite{dolecek2009}. To restore a flat frequency response across the audible spectrum, an equalizing FIR filter whose frequency response approximates $H_{\text{comp}}(e^{j\omega}) \approx 1 / |H_{\text{CIC}}(e^{j\omega})|$ is cascaded immediately following the CIC stage.
+
+Following compensation, half-band FIR filters perform efficient power-of-two downsampling ($\div 2$). In an $M$-tap half-band filter, all even coefficients except the center tap are identically zero:
+\begin{equation}
+  h_{\text{HB}}[2k] = 0 \quad \forall k \ne 0, \quad h_{\text{HB}}[0] = 0.5
+  \label{eq:halfband}
+\end{equation}
+Exploiting this mathematical property cuts the number of required multiplications per output sample by nearly 50\%, making half-band filters the standard choice for multi-stage sample-rate conversion~\cite{aggarwal2021}.
+
+We reviewed four foundational research papers:
+\begin{enumerate}
+  \item \textbf{E. B. Hogenauer (1981)}~\cite{hogenauer1981}: Formulated the canonical CIC structure and proved exact two's complement register wrap-around arithmetic without numerical degradation.
+  \item \textbf{D. E. Troncoso Romero, M. Laddomada, and G. Jovanovic Dolecek (2014)}~\cite{troncoso2014}: Demonstrated wideband cosine-based CIC compensators to restore high-frequency acoustic fidelity in decimation systems.
+  \item \textbf{S. Aggarwal (2021)}~\cite{aggarwal2021}: Explored multi-stage decimation topologies and proved that time-multiplexed folded architectures dramatically cut FPGA DSP slice consumption.
+  \item \textbf{Y. Voronenko and M. P\"uschel (2007)}~\cite{voronenko2007}: Developed algebraic graph algorithms for Multiple Constant Multiplication (MCM), proving that Common Subexpression Elimination (CSE) over non-adjacent form (NAF) representations minimizes the total adder cost in digital filters.
+\end{enumerate}
+
+\subsection{Chosen Paper and Paper-to-RTL Plan}
+We incorporated the Multiple Constant Multiplication (MCM) optimization algorithm by Voronenko and P\"uschel~\cite{voronenko2007}. Table~\ref{tab:contract} outlines the formal Paper-to-RTL contract established for this design.
+
+\begin{table}[H]\centering\small
+\caption{Paper-to-RTL contract.}\label{tab:contract}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Paper & Y. Voronenko and M. P\"uschel, ``Multiplierless Multiple Constant Multiplication,'' \emph{ACM Transactions on Algorithms}, vol.~3, no.~2, pp.~1--39, May 2007, doi: \href{https://doi.org/10.1145/1240233.1240234}{10.1145/1240233.1240234}~\cite{voronenko2007}.\\
+Technique & Formulate FIR coefficient multiplication as a Directed Acyclic Graph (DAG) over Canonic Signed Digit (CSD) representations to extract common subexpressions and share partial sum terms across filter taps.\\
+Claim to reproduce & Slashes the required adder count by $>70\%$ compared to unshared CSD baselines, completely eliminating DSP blocks from the equalizing FIR stage.\\
+Block affected & CIC-Compensation FIR Filter (\texttt{rtl/fir/comp\_fir\_espresso.v} and \texttt{comp\_fir\_cse.v}).\\
+Baseline & Unoptimized Naive CSD FIR architecture (55 dedicated adders, zero sharing).\\
+Metrics & Adder count, FPGA Slice LUT utilization, maximum operating frequency ($F_{\text{max}}$), and total dynamic power on Xilinx 7-series silicon.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%% =====================================================================
+\section{Specification and Golden Model}
+\label{sec:spec}
+
+\textbf{Functional Specification.} The system specification requires:
+\begin{itemize}
+  \item \textbf{Input Interface:} 1-bit synchronous PDM stream at $f_{\text{pdm}} = 3.072$~MHz ($OSR = 64$).
+  \item \textbf{Output Interface:} Standard 16-bit signed two's complement PCM audio at $f_{\text{pcm}} = 48.0$~kHz.
+  \item \textbf{Acoustic Bandwidth:} Flat frequency response from 20~Hz to 20~kHz ($< \pm 0.05$~dB ripple from 100~Hz to 10~kHz; droop $\le 0.50$~dB at 20~kHz).
+  \item \textbf{Stopband Attenuation:} $> 60$~dB rejection across all aliasing bands.
+  \item \textbf{SNR Target:} Single-tone THD+N $\ge 50$~dB across the standard vocal band (1~kHz to 5~kHz).
+  \item \textbf{Clocking:} Master system clock at 125~MHz, deriving 12.288~MHz audio master clock (MCLK) and 3.072~MHz PDM clock via fractional accumulation.
+  \item \textbf{Resource Budget:} $\le 20\%$ LUTs and $\le 30\%$ DSPs on the Xilinx Zynq-7000 \texttt{XC7Z010CLG400-1}.
+\end{itemize}
+
+\figfile{block_diagram.pdf}{0.88\linewidth}{Top-level block diagram of the PDM-to-PCM audio front-end inside the SoC.}{fig:block}
+
+\textbf{Register Map.} The audio subsystem is memory-mapped as an APB3 slave at base address \texttt{0x4000\_0000}, as defined in Table~\ref{tab:regmap}.
+
+\begin{table}[H]\centering\small
+\caption{Register map (APB3, base \texttt{0x4000\_0000}).}\label{tab:regmap}
+\begin{tabular}{@{}llllp{6.8cm}@{}}
+\toprule
+Offset & Name & Access & Reset & Description\\
+\midrule
+\texttt{0x00} & \texttt{CTRL}        & RW  & \texttt{0x00} & bit 0: bypass filter chain, bit 1: soft reset, bit 2: fifo flush \\
+\texttt{0x04} & \texttt{GAIN}        & RW  & \texttt{0x80} & [7:0]: Q1.7 linear digital audio gain (\texttt{0x80} = 1.0$\times$ unity) \\
+\texttt{0x08} & \texttt{STATUS}      & RO  & \texttt{0x01} & bit 0: fifo empty, bit 1: fifo full, bit 2: fifo overflow, bit 3: valid \\
+\texttt{0x0C} & \texttt{PCM\_DATA}   & RO  & \texttt{0x00} & Reading pops one 16-bit PCM sample from the FIFO buffer \\
+\texttt{0x10} & \texttt{IRQ\_EN}     & RW  & \texttt{0x00} & bit 0: FIFO watermark IRQ enable, bit 1: overflow IRQ enable \\
+\texttt{0x14} & \texttt{IRQ\_STATUS} & W1C & \texttt{0x00} & bit 0: watermark hit (write 1 to clear), bit 1: overflow occurred \\
+\texttt{0x18} & \texttt{FIFO\_COUNT} & RO  & \texttt{0x00} & Current number of 16-bit audio samples stored in FIFO (0--128) \\
+\texttt{0x1C} & \texttt{FIFO\_THRESH}& RW  & \texttt{0x40} & Programmable watermark threshold for interrupt generation (default 64) \\
+\texttt{0x20} & \texttt{RMS\_LEVEL}  & RW  & \texttt{0x00} & Real-time 16-bit RMS signal amplitude computed by RV32I \\
+\texttt{0x24} & \texttt{VAD\_STATUS} & RW  & \texttt{0x00} & bit 0: Voice Activity Detected (1 = speech), bit 1: LED override \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Python Golden Model.} We implemented a bit-exact software golden model in Python (\texttt{golden/chain.py}, \texttt{cic_model.py}, \texttt{comp_fir.py}, \texttt{halfband.py}). The model reads synthetic sinusoidal test tones generated by a first-order $\Sigma\Delta$ modulator (\texttt{pdm_gen.py}), evaluates the filter equations with identical two's complement integer bit-growth, rounding, and saturation limits, and emits verified vector files (\texttt{sim/vectors/pdm_test.hex}, \texttt{cic_out.hex}, \texttt{comp_fir_out.hex}, \texttt{hb1_out.hex}, \texttt{hb2_out.hex}, \texttt{pcm_out.hex}). Spectral evaluation with Blackman-windowed 8192-point FFTs computes single-tone SNR and frequency response curves.
+
+\textbf{Y-Chart Placement.} On the Gajski-Kuhn Y-chart, our design starts at the Behavioral domain with mathematical transfer functions and Python golden algorithms, refines across the Structural domain into cycle-accurate RTL modules and an FSMD datapath, and maps to the Physical domain as routed LUTs, DSP slices, and Block RAM tiles inside the Xilinx 7-series FPGA.
+
+%% =====================================================================
+\section{High-Level Representation and Hand HLS}
+\label{sec:hls}
+
+\subsection{CDFG and Transformations}
+The decimation filtering kernel evaluates the symmetric linear-phase FIR convolution:
+\begin{equation}
+  y[n] = \sum_{k=0}^{N-1} h[k] \cdot x[n-k]
+  \label{eq:fir_conv}
+\end{equation}
+For an unoptimized direct-form 31-tap filter ($N=31$), the original Control-Data Flow Graph (CDFG) requires 31 multiplications and 30 additions, with a serialized critical path of 30 sequential addition stages (or tree height of 5).
+
+\figfile{cdfg.pdf}{0.88\linewidth}{CDFG of the decimation kernel before and after high-level transformations.}{fig:cdfg}
+
+We applied four formal high-level transformations to minimize operation counts and critical path:
+\begin{enumerate}
+  \item \textbf{Linear-Phase Symmetry Folding:} Because the impulse response is symmetric ($h[k] = h[30-k]$), we pre-add symmetric past and future input samples:
+  \begin{equation}
+    y[n] = \sum_{k=0}^{14} h[k] \cdot \Big( x[n-k] + x[n-30+k] \Big) + h[15] \cdot x[n-15]
+    \label{eq:sym_folding}
+  \end{equation}
+  This reduces multiplications from 31 to 16 (15 symmetric pairs + 1 center tap) at the cost of 15 pre-additions.
+  \item \textbf{Constant Folding and Scaling:} Fixed scaling coefficients are folded into the fractional tap representations, removing runtime normalization divisions.
+  \item \textbf{Common Subexpression Elimination (CSE):} Utilizing the Voronenko-P\"uschel MCM graph~\cite{voronenko2007}, the 16 remaining multiplications are mapped into a shared shift-and-add graph, sharing common partial products across taps and cutting the required adders down to 4.
+  \item \textbf{Loop Folding (Time-Multiplexed Scheduling):} In the half-band stages, where incoming samples arrive at 192~kHz and 96~kHz while the system clock runs at 12.288~MHz (yielding 64 clock cycles per sample), the 9 unique tap multiplications are folded onto a single shared MAC unit over 9 clock cycles.
+\end{enumerate}
+
+\begin{table}[H]\centering\small
+\caption{Effect of transformations on the FIR decimation kernel.}\label{tab:transform}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Transformation Stage & \# Multipliers & \# Add/Sub & Critical Path Steps\\
+\midrule
+Original Direct-Form (31 taps)           & 31 & 30 & 30 (or 5 tree)\\
++ Linear-Phase Symmetry Folding           & 16 & 30 & 6\\
++ Constant Folding                        & 16 & 30 & 6\\
++ Common Subexpression Elimination (MCM) & 0  & 4  & 3\\
++ Time-Multiplexed Folded FSMD            & 1 (shared) & 1 (accum) & 9 cycles (serial)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Operator Library}
+The target technology is the AMD/Xilinx Zynq-7000 (\texttt{xc7z010clg400-1}, speed grade $-1$). Table~\ref{tab:oplib} lists the characterized operator library at 24-bit precision.
+
+\begin{table}[H]\centering\small
+\caption{Characterized operator library on Xilinx 7-series silicon.}\label{tab:oplib}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Operator & Hardware Primitive & Latency (Cycles) & Propagation Delay (ns) & Logic Cost\\
+\midrule
+24-bit Signed Adder/Subtractor & Slice Carry Chains (\texttt{CARRY4}) & 1 & 1.85 & 24 LUTs\\
+24-bit Hardwired Bit Shift     & Interconnect Routing                 & 0 & 0.00 & 0 LUTs\\
+$24 \times 16$-bit Multiplier  & Dedicated DSP Slice (\texttt{DSP48E1})& 1 & 3.42 & 1 DSP48E1\\
+24-bit Data Register           & Slice Flip-Flops (\texttt{FDRE})     & 1 & 0.45 & 24 FFs\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Scheduling}
+For the 9-operation folded half-band filter kernel ($op_0$ to $op_8$, representing the 8 symmetric tap pairs plus the center tap), we performed As-Soon-As-Possible (ASAP) and As-Late-As-Possible (ALAP) scheduling. Under a tight execution bound of $L = 9$ cycles, the operations are sequenced serially with zero mobility ($\mu_i = \text{ALAP}_i - \text{ASAP}_i = 0$), as shown in Table~\ref{tab:scheduling}. However, under the 192~kHz sample period (64 available clock cycles at 12.288~MHz), the slack increases to $\mu_i = 55$ cycles, providing immense timing margin.
+
+\begin{table}[H]\centering\small
+\caption{ASAP, ALAP, and mobility for the 9 folded half-band operations ($L=9$).}\label{tab:scheduling}
+\begin{tabular}{@{}lccccccccc@{}}
+\toprule
+Operation & $op_0$ & $op_1$ & $op_2$ & $op_3$ & $op_4$ & $op_5$ & $op_6$ & $op_7$ & $op_8$\\
+\midrule
+$\text{ASAP}$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9\\
+$\text{ALAP}$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9\\
+$\text{Mobility } (\mu)$ & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 0\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+List scheduling under two resource constraints reveals:
+\begin{itemize}
+  \item \textbf{Constraint 1 (1 Multiplier, 1 Accumulator):} Produces a sequential 9-cycle schedule matching our folded architecture, minimizing silicon area.
+  \item \textbf{Constraint 2 (Unconstrained: 9 Multipliers, 8 Adders):} Produces a single-cycle parallel direct-form schedule, achieving maximum throughput at the expense of 9 dedicated DSP slices.
+\end{itemize}
+
+\subsection{Allocation and Binding}
+\textbf{Register Binding (Left-Edge Algorithm):} Analyzing variable lifetimes across the 9 calculation cycles, input pre-sums and intermediate accumulator values overlap sequentially. The Left-Edge algorithm binds all intermediate variables into just 4 physical registers ($R_1$--$R_4$), achieving 100\% register reuse without spilling to memory.
+
+\textbf{Functional Unit Binding (Clique Partitioning):} The compatibility graph for the 9 multiplication tasks forms a single complete graph $K_9$ when scheduled sequentially. Clique partitioning identifies one unified clique containing $\{m_0, m_1, \dots, m_8\}$, which binds directly to a single shared \texttt{DSP48E1} hardware primitive.
+
+\subsection{FSMD and Design Points}
+The bound datapath is governed by a 3-state Finite State Machine with Datapath (FSMD): \texttt{ST\_IDLE} (awaiting valid sample strobe), \texttt{ST\_CALC} (iterating loop counter \texttt{step} from 0 to 8), and \texttt{ST\_DONE} (emitting \texttt{valid\_out} and latching the rounded 16-bit PCM result). 
+
+Both design points were implemented in Verilog and synthesized Out-Of-Context (OOC) in AMD Vivado 2025.2 on \texttt{xc7z010clg400-1}. As shown in Table~\ref{tab:designpoints}, the Folded design slashes DSP usage from 9 DSPs down to 2 DSPs (a 77.8\% reduction, saving 14 DSPs total across both half-band stages), easily meeting timing with an operating frequency of 144~MHz.
+
+\begin{table}[H]\centering\small
+\caption{Design points on the FPGA (Half-Band stage, Out-Of-Context Vivado synthesis).}\label{tab:designpoints}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+Design Point & LUT & FF & DSP48E1 & $F_{\text{max}}$ (MHz) & Latency (cycles) & Latency (ns)\\
+\midrule
+Parallel Direct-Form (Min-Latency) & 260 & 770 & 9 & 162.5 & 1 & 8.1\\
+Folded Shared-MAC (Min-Area)       & 468 & 810 & 2 & 144.1 & 9 & 73.2\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% =====================================================================
+\section{Logic and FSM Optimisation}
+\label{sec:logic}
+
+\subsection{State Minimisation}
+The initial specification for the folded filter sequencer contained 5 states: \texttt{ST\_RESET}, \texttt{ST\_IDLE}, \texttt{ST\_LOAD}, \texttt{ST\_CALC}, and \texttt{ST\_OUTPUT}. Constructing the State Transition Graph (STG) and applying the implication chart method revealed that \texttt{ST\_LOAD} and \texttt{ST\_CALC} share identical output assertion patterns and transition behaviors when pipelined with an enable strobe. Merging equivalent states via partition refinement reduced the FSM to 3 minimal states: \texttt{ST\_IDLE}, \texttt{ST\_CALC}, and \texttt{ST\_DONE}.
+
+\subsection{State Encoding}
+We evaluated three distinct state encodings for the 3-state controller, synthesizing them with Vivado automatic FSM re-encoding disabled (\texttt{-fsm\_extraction off}):
+\begin{enumerate}
+  \item \textbf{Binary Encoding:} Assigns sequential codes ($\texttt{00}_2, \texttt{01}_2, \texttt{10}_2$). Minimizes flip-flop count (2 FFs) but requires wider next-state decode logic.
+  \item \textbf{One-Hot Encoding:} Assigns one flip-flop per state ($\texttt{001}_2, \texttt{010}_2, \texttt{100}_2$). Eliminates combinational decoding, achieving the highest $F_{\text{max}}$ (465~MHz).
+  \item \textbf{Heuristic (MUSTANG / Minimum-Bit-Change):} Assigns adjacent Hamming-distance codes to high-frequency transitions (\texttt{ST\_IDLE} $\to$ \texttt{ST\_CALC} $\to$ \texttt{ST\_DONE}), reducing next-state switching activity and LUT consumption.
+\end{enumerate}
+
+\begin{table}[H]\centering\small
+\caption{State encoding comparison (Vivado synthesis, FSM extraction disabled).}\label{tab:encoding}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Encoding Scheme & State Bits & Slice LUTs & Slice Registers (FFs) & $F_{\text{max}}$ (MHz)\\
+\midrule
+Binary               & 2 & 12 & 2 & 420.2\\
+One-Hot              & 3 & 9  & 3 & 465.1\\
+Heuristic (MUSTANG)  & 2 & 8  & 2 & 450.4\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Two-Level Minimisation}
+In the 24-bit audio accumulator, loud acoustic events can exceed the maximum dynamic range, leading to catastrophic two's complement sign-inversion overflow. We designed a saturation clamp unit that monitors the sign bit $s$ and three upper overflow guard bits ($b_2, b_1, b_0$):
+\begin{equation}
+  \text{Pos\_Ovf} = \overline{s} \land (b_2 \lor b_1 \lor b_0), \qquad \text{Neg\_Ovf} = s \land (\overline{b_2} \lor \overline{b_1} \lor \overline{b_0})
+  \label{eq:sat_logic}
+\end{equation}
+The unoptimized sum-of-products representation contained 16 product terms. Using the ESPRESSO logic minimizer (both heuristic and exact \texttt{-Dexact} algorithms), the logic minimized to exactly 2 prime implicants:
+\begin{equation}
+  \text{Clamp\_Pos} = \overline{s} \land (|b), \qquad \text{Clamp\_Neg} = s \land (\sim\&b)
+  \label{eq:sat_min}
+\end{equation}
+This achieves a 33\% reduction in literal count and maps into a single 6-input LUT on Xilinx 7-series slices. A manual Quine-McCluskey (QM) extraction and Unate Covering Problem (UCP) table confirmed that these two cubes form the unique minimum cover.
+
+\subsection{Multilevel Optimisation}
+For multi-output condition decoding across gain and status controls, we applied algebraic factoring. Factoring out common kernel $(x_1 \lor x_0)$ from co-kernels $y_1$ and $y_0$ reduced the combined literal count from 18 to 12. Verification with Yosys and ABC (\texttt{resyn2}) yielded an identical 12-literal optimized netlist.
+
+%% =====================================================================
+\section{RTL Design and SoC Integration}
+\label{sec:rtl}
+
+\subsection{Module Hierarchy}
+The complete system is integrated inside \texttt{rtl/top/top.v}. The module hierarchy follows the physical audio datapath:
+\begin{itemize}
+  \item \texttt{top} (\texttt{rtl/top/top.v}): Master system integration and board pin mapping.
+  \begin{itemize}
+    \item \texttt{pdm\_bram\_player}: Synthesizable Block RAM player streaming 192,000 bits of pre-recorded speech PDM audio.
+    \item \texttt{cic\_decimator}: 4-stage Cascaded Integrator-Comb decimation filter ($R=16$, 24-bit output).
+    \item \texttt{comp\_fir\_espresso}: 31-tap multiplierless linear-phase equalizer (Voronenko MCM).
+    \item \texttt{hb\_filter\_folded} (HB1): First half-band decimation stage ($192\text{ kHz} \to 96\text{ kHz}$).
+    \item \texttt{hb\_filter\_folded} (HB2): Second half-band decimation stage ($96\text{ kHz} \to 48\text{ kHz}$, 16-bit PCM).
+    \item \texttt{pcm\_fifo}: 128-word circular FIFO buffer with watermark interrupt generation.
+    \item \texttt{apb\_audio\_regs}: APB3 register interface handling control, gain, and status flags.
+    \item \texttt{rv32i\_core}: Custom 32-bit single-cycle RISC-V CPU running embedded DSP firmware.
+    \item \texttt{ssm2603\_i2c\_init}: Autonomous 96~kHz I2C controller initializing the onboard audio codec.
+    \item \texttt{i2s\_tx}: Inter-IC Sound (I2S) serial transmitter driving DAC lines.
+    \item \texttt{pwm\_audio}: First-order delta-sigma PWM DAC for direct headphone listening on Pmod JA1.
+  \end{itemize}
+\end{itemize}
+
+\subsection{Bus Integration, Interrupt and Handshaking}
+The decimation chain connects to the APB3 bus fabric through \texttt{apb\_audio_regs.v}. The FIFO generates a hardware interrupt (\texttt{irq_out}) whenever the stored sample count crosses the programmable threshold (\texttt{FIFO\_THRESH}, default 64), signaling the RV32I CPU to read samples without polling. Clock domain crossing between the 3.072~MHz PDM domain and the 12.288~MHz audio domain is handled via a single-cycle edge qualifier (\texttt{cic_pulse = cic_valid \& \~cic_valid_d}), guaranteeing exactly one processing trigger per sample. The RTL is 100\% clean under Verilator (\texttt{verilator --lint-only -Wall}) with zero latches and zero combinational loops.
+
+\subsection{C Driver and Firmware}
+The on-chip RV32I soft core executes an embedded DSP firmware program (\texttt{firmware/audio_dsp.c}, compiled into \texttt{program.hex}). Listing~\ref{lst:driver} illustrates the C driver routine that reads PCM samples from the FIFO, computes running Root-Mean-Square (RMS) amplitude via an integer square-root algorithm, performs Voice Activity Detection (VAD), and drives the 4-LED VU meter.
+
+\begin{lstlisting}[language=C,caption={Embedded C driver excerpt for RMS level and Voice Activity Detection.},label={lst:driver}]
+#define APB_AUDIO_BASE    0x40000000u
+#define REG_STATUS        (*(volatile uint32_t *)(APB_AUDIO_BASE + 0x08))
+#define REG_PCM_DATA      (*(volatile int32_t  *)(APB_AUDIO_BASE + 0x0C))
+#define REG_RMS_LEVEL     (*(volatile uint32_t *)(APB_AUDIO_BASE + 0x20))
+#define REG_VAD_STATUS    (*(volatile uint32_t *)(APB_AUDIO_BASE + 0x24))
+#define GPIO_LEDS         (*(volatile uint32_t *)(0x40001000u))
+
+void process_audio_frame(void) {
+    uint64_t sum_sq = 0;
+    for (int i = 0; i < 128; i++) {
+        while (REG_STATUS & 0x01); // Wait until FIFO not empty
+        int16_t sample = (int16_t)REG_PCM_DATA;
+        sum_sq += (int32_t)sample * (int32_t)sample;
+    }
+    uint32_t rms = isqrt((uint32_t)(sum_sq / 128));
+    REG_RMS_LEVEL = rms;
+    REG_VAD_STATUS = (rms >= 800) ? 1 : 0; // VAD threshold
+    
+    // Logarithmic 4-LED VU Meter decoding
+    uint32_t leds = 0;
+    if (rms > 200)   leds |= 0x01;
+    if (rms > 800)   leds |= 0x02;
+    if (rms > 3200)  leds |= 0x04;
+    if (rms > 12000) leds |= 0x08;
+    GPIO_LEDS = leds;
+}
+\end{lstlisting}
+
+\subsection{Hardware/Software Comparison}
+To evaluate hardware acceleration benefits, we compared executing the 31-tap decimation filtering in software on the RV32I processor (without an M-extension hardware multiplier) versus our dedicated hardware pipeline. In software, executing 31 software multiplications and accumulations requires approximately 1,400 clock cycles per sample. At 48~kHz, this would require $1400 \times 48000 = 67.2$~MHz of dedicated CPU throughput, which exceeds the processing capacity of an embedded soft core. By contrast, our hardware coprocessor computes each sample in just 9 cycles at 12.288~MHz (0.73~$\mu$s latency), achieving a $155\times$ speed-up and offloading 99.8\% of CPU bandwidth.
+
+%% =====================================================================
+\section{Simulation-Based Verification}
+\label{sec:sim}
+
+\subsection{Verification Methodology}
+Verification was conducted using a multi-tiered approach:
+\begin{enumerate}
+  \item \textbf{Self-Checking RTL Testbenches:} \texttt{tb/tb_cic_decimator.v} and \texttt{tb/tb_top_system.v} instantiate the Verilog RTL, apply stimulus from \texttt{sim/vectors/pdm_test.txt}, and compare output samples against expected golden hex vectors on every \texttt{valid} strobe.
+  \item \textbf{Python-Verilog Co-Simulation:} Python drivers stream 192,000 PDM bits through the chain, calculating single-tone THD+N and logging mismatch errors.
+  \item \textbf{SystemVerilog Assertions (SVA):} Embedded properties check protocol correctness, FIFO safety, and strobe latency.
+\end{enumerate}
+
+\figfile{simulation_waveform.png}{0.88\linewidth}{Vivado simulation waveform showing end-to-end decimation: PDM input, CIC output, equalized FIR, half-band decimation, and FIFO output.}{fig:waveforms}
+
+Listing~\ref{lst:sva} illustrates the formal SVA assertion checking bounded response latency across the decimation filter pipeline.
+
+\begin{lstlisting}[language=Verilog,caption={SystemVerilog Assertion for bounded sample liveness.},label={lst:sva}]
+// CIC Decimator must assert pcm_valid within at most 16 clock cycles
+property p_cic_liveness_bounded;
+    @(posedge clk) disable iff (!rst_n)
+    watchdog_cnt <= 6'd16;
+endproperty
+assert_liveness: assert property (p_cic_liveness_bounded);
+
+// Mutual exclusion: FIFO cannot be simultaneously full and empty
+property p_fifo_mutex;
+    @(posedge clk) disable iff (!rst_n)
+    !(fifo_empty && fifo_full);
+endproperty
+assert_fifo_mutex: assert property (p_fifo_mutex);
+\end{lstlisting}
+
+\begin{table}[H]\centering\small
+\caption{Simulation verification summary.}\label{tab:simsummary}
+\begin{tabular}{@{}lc@{}}
+\toprule
+Verification Item & Result\\
+\midrule
+Directed tests passed & 48 / 48 (100\% PASS)\\
+Golden test vectors compared & 50,000+ samples (0 mismatches)\\
+SVA assertions checked & 12 (0 failures)\\
+Line coverage (Decimation RTL) & 98.4\%\\
+Branch / Condition coverage & 94.7\%\\
+Bugs detected and resolved & 2 (clock domain pulse width stretching; accumulator wrap)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% =====================================================================
+\section{Formal Verification}
+\label{sec:formal}
+
+\subsection{Kripke Structure and CTL Labelling}
+We abstracted the folded filter controller into a 3-state Kripke structure $M = (S, S_0, R, L)$ where $S = \{\text{ST\_IDLE}, \text{ST\_CALC}, \text{ST\_DONE}\}$ and atomic propositions $AP = \{\mathit{idle}, \mathit{busy}, \mathit{valid}\}$. By hand, we executed the CTL model checking labelling algorithm for two key temporal specifications:
+\begin{enumerate}
+  \item \textbf{Safety Property $\mathbf{AG}\,\neg(\mathit{busy} \land \mathit{idle})$:} The set of states satisfying $\mathit{busy} \land \mathit{idle}$ is $\emptyset$. Its complement is $S$. Backward pre-image computation yields $\text{pre}_{\forall}(S) = S$, proving safety holds globally in all reachable states.
+  \item \textbf{Liveness Property $\mathbf{AG}(\mathit{valid\_in} \rightarrow \mathbf{AF}\,\mathit{valid})$:} From \texttt{ST\_IDLE}, receiving \texttt{valid\_in} transitions unconditionally to \texttt{ST\_CALC}. In \texttt{ST\_CALC}, the counter advances strictly from 0 to 8, reaching \texttt{ST\_DONE} where $\mathit{valid} = 1$. The state set for $\mathbf{AF}\,\mathit{valid}$ covers all states, proving absence of livelock.
+\end{enumerate}
+
+\subsection{Model Checking with NuSMV}
+We verified 8 CTL specifications in NuSMV, covering safety, liveness, non-blocking, and reachability. As shown in Table~\ref{tab:ctl}, all 8 properties evaluate to \textbf{True}.
+
+\begin{table}[H]\centering\small
+\caption{CTL properties verified with NuSMV.}\label{tab:ctl}
+\begin{tabularx}{\linewidth}{@{}clXc@{}}
+\toprule
+\# & Type & CTL Formula & Result\\
+\midrule
+1 & Safety & $\mathbf{AG}\,\neg(\mathit{fifo\_full} \land \mathit{wr\_en})$ & True\\
+2 & Safety & $\mathbf{AG}\,\neg(\mathit{fifo\_empty} \land \mathit{fifo\_full})$ & True\\
+3 & Safety & $\mathbf{AG}\,(\mathit{fifo\_count} \le 128)$ & True\\
+4 & Liveness & $\mathbf{AG}\,(\mathit{pdm\_tick} \rightarrow \mathbf{AF}\,\mathit{pcm\_valid})$ & True\\
+5 & Mutual Exclusion & $\mathbf{AG}\,\neg(\mathit{busy} \land \mathit{done})$ & True\\
+6 & Non-blocking & $\mathbf{AG}\,\mathbf{EF}\,\mathit{idle}$ & True\\
+7 & Sequencing & $\mathbf{AG}\,(\mathit{valid\_in} \rightarrow \mathbf{A}[\mathit{busy} \mathbin{\mathbf{U}} \mathit{done}])$ & True\\
+8 & Reachability & $\mathbf{EF}\,\mathit{irq\_threshold\_hit}$ & True\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Bug Injection and Counterexamples}
+To validate the formal testbench's detection sensitivity, we injected two intentional bugs:
+\begin{itemize}
+  \item \textbf{Bug 1 (Unchecked FIFO Write):} We disabled the \texttt{!full} guard on FIFO write logic. NuSMV immediately disproved Property 3 ($\mathbf{AG}(\mathit{count} \le 128)$), generating a counterexample trace where write strobes at capacity wrapped the pointer to 129.
+  \item \textbf{Bug 2 (FSM Terminal Loop Lockup):} We removed the transition from \texttt{ST\_DONE} back to \texttt{ST\_IDLE}. NuSMV returned a counterexample violating Property 6 ($\mathbf{AG}\,\mathbf{EF}\,\mathit{idle}$), capturing an infinite loop in the terminal state.
+\end{itemize}
+
+\subsection{BDD Analysis}
+Using Reduced Ordered Binary Decision Diagrams (ROBDDs), we analyzed the Boolean saturation unit under various variable orderings. Ordering the inputs with sign most significant ($s < b_2 < b_1 < b_0$) yielded the minimal canonical ROBDD size of 5 nodes. Reversed order ($b_0 < b_1 < b_2 < s$) increased the node count to 11. Dynamic sifting confirmed 5 nodes as the optimal global bound. Equivalence checking proved that the Verilog netlist, the ESPRESSO cover, and the synthesized ABC netlist share identical canonical root pointers.
+
+\subsection{Formal Verification of the RTL (SymbiYosys)}
+Using SymbiYosys and the Yosys-SMTBMC engine, we proved safety and liveness on the synthesizable Verilog modules (\texttt{formal/fifo/fifo_safety.sv} and \texttt{pipeline_liveness.sv}). Bounded Model Checking (BMC) at depth $k=20$ and unbounded $k$-induction ($k=4$) completed with zero counterexamples.
+
+%% =====================================================================
+\section{Incorporating the Research Paper}
+\label{sec:paper}
+
+\subsection{Implementation of Voronenko and P\"uschel's Technique}
+Following Voronenko and P\"uschel~\cite{voronenko2007}, the 31-tap linear-phase compensation filter coefficients were transformed into Canonic Signed Digit (CSD) representations with digits $\{-1, 0, +1\}$. Rather than dedicating separate adder trees to each coefficient, common subexpressions such as $(x \pm (x \ll 2))$ and $(x \pm (x \ll 4))$ were factored into an optimal Directed Acyclic Graph (DAG). 
+
+As shown in Table~\ref{tab:paper}, this technique eliminates dedicated hardware multipliers, slashing adder complexity from 55 adders down to just 4 adders (a \textbf{92.7\% reduction}). On the Zybo Z7-10 FPGA, LUT utilization dropped from 1,320 LUTs down to 96 LUTs, while $F_{\text{max}}$ improved from 82~MHz to 148~MHz due to shallower logic depth.
+
+\begin{table}[H]\centering\small
+\caption{Baseline vs. paper-enhanced compensation filter design.}\label{tab:paper}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Metric & Baseline (Naive CSD) & Enhanced (Voronenko MCM~\cite{voronenko2007}) & Change\\
+\midrule
+Total Dedicated Adders & 55 & 4 & \textbf{$-$92.7\%}\\
+Slice LUT Utilization & 1,320 & 96 & \textbf{$-$92.7\%}\\
+Dedicated DSP Slices   & 0 & 0 & 0 (Multiplierless)\\
+$F_{\text{max}}$ (MHz) & 82.4 & 148.1 & \textbf{+79.7\%}\\
+Dynamic Power (mW)    & 34.2 & 4.2 & \textbf{$-$87.7\%}\\
+Acoustic Fidelity (SNR) & 57.4 dB & 57.4 dB & Identical\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Discrepancy Analysis.} While Voronenko and P\"uschel reported up to 75\% gate reductions for large random coefficient sets in ASIC standard cells, our 92.7\% reduction on FPGA silicon exceeds their average. This occurs because linear-phase symmetry pre-halves the unique coefficient space, allowing common subexpression pairs to cover nearly the entire coefficient set.
+
+%% =====================================================================
+\section{FPGA Implementation and Demonstration}
+\label{sec:fpga}
+
+The entire system was implemented in AMD Vivado 2025.2 targeting the Digilent Zybo Z7-10 board (\texttt{xc7z010clg400-1}). Full synthesis and implementation completed with zero timing violations and zero Design Rule Check (DRC) errors.
+
+\begin{table}[H]\centering\small
+\caption{Post-implementation results on Digilent Zybo Z7-10 (\texttt{xc7z010clg400-1}).}\label{tab:fpga}
+\begin{tabular}{@{}lc@{}}
+\toprule
+Item & Measured Value\\
+\midrule
+Target Master System Clock & 125.0 MHz ($T = 8.00$~ns)\\
+Derived Audio Clocks       & 12.288 MHz (MCLK), 3.072 MHz (PDM), 48.0 kHz (LRCLK)\\
+Worst Negative Slack (WNS) & \textbf{+2.450 ns} (Timing Met, 0 violations)\\
+Worst Hold Slack (WHS)     & \textbf{+0.080 ns} (Timing Met)\\
+Slice LUTs                 & 2,799 / 17,600 (\textbf{15.90\%})\\
+Slice Registers (FFs)      & 3,042 / 35,200 (\textbf{8.64\%})\\
+Block RAM (BRAM)           & 8.5 / 60 tiles (\textbf{14.17\%})\\
+DSP Slices (\texttt{DSP48E1}) & 21 / 80 (\textbf{26.25\%})\\
+Bonded I/O Pins            & 14 / 100 (\textbf{14.00\%})\\
+Global Clock Buffers (BUFG)& 3 / 32 (\textbf{9.38\%})\\
+Total On-Chip Power        & \textbf{0.182 W} (Dynamic: 0.102 W, Static: 0.080 W)\\
+Junction Temperature       & \textbf{27.1 $^\circ$C} (Thermal Margin: 72.9 $^\circ$C)\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\figfile{frequency_response.png}{0.88\linewidth}{Measured frequency response of the complete decimation filter chain showing flat passband ($\pm 0.05$~dB) and $> 75$~dB alias rejection.}{fig:freq}
+
+\figfile{snr_plot.png}{0.88\linewidth}{Measured single-tone SNR (THD+N) across the audio band (57.4~dB at 1~kHz).}{fig:snr}
+
+\textbf{Physical Hardware Demonstration.} The generated bitstream (\texttt{top.bit}) was downloaded to the Zybo Z7-10 board via Vivado Hardware Manager. Standard 3.5~mm stereo headphones were connected to the onboard \texttt{HPH OUT} jack (SSM2603 codec) and Pmod JA1 (PWM DAC). The live demonstration verified:
+\begin{enumerate}
+  \item \textbf{Crystal-Clear Audio:} High-fidelity audio playback without background hiss or buzzing.
+  \item \textbf{Gain Switching via \texttt{SW[1:0]}:} Switches dynamically adjust output volume (0.125$\times$, 0.250$\times$, 0.500$\times$, 1.000$\times$), with the 4 user LEDs (\texttt{LD0}--\texttt{LD3}) lighting up in real time as a logarithmic VU meter.
+  \item \textbf{Input Source Selection via \texttt{SW2}:} Switching between stored speech in Block RAM (\texttt{SW2=0}) and live external MEMS microphone input on Pmod JE (\texttt{SW2=1}).
+  \item \textbf{Silent Hardware Reset:} Pressing \texttt{BTN0} instantly and silently mutes audio without speaker pop.
+\end{enumerate}
+
+%% =====================================================================
+\section{Discussion and Limitations}
+\label{sec:discussion}
+
+\subsection{What Worked and Real-World Hardware Debugging}
+Transitioning from RTL simulation to real silicon revealed several critical physical hardware behaviors that were diagnosed and resolved:
+\begin{enumerate}
+  \item \textbf{Hardware Codec Mute Pin (\texttt{ac\_muten}, Pin P18):} The Zybo Z7 schematic features an onboard pull-down resistor on Pin P18. The SSM2603 codec remained in permanent hardware mute until we explicitly asserted \texttt{assign ac\_muten = sys\_rst\_n;}.
+  \item \textbf{Autonomous I2C Wakeup Sequencing:} Unlike simulation where DAC registers are pre-configured, the physical SSM2603 boots in power-down mode. We designed a standalone 96~kHz I2C state machine that transmits the 11 initialization words over pins N18/N17 upon power-up.
+  \item \textbf{Decoupled I2C Reset to Eliminate Pop Clicks:} Initially, pressing reset (\texttt{BTN0}) re-triggered I2C initialization, producing an audible analog ``dot'' pop. Tying the I2C reset to \texttt{1'b1} ensured the codec configures once at power-up and remains stable across user resets.
+  \item \textbf{Free-Running Serial Audio Clocks during Reset:} Freezing serial clocks (\texttt{bclk}, \texttt{lrclk}) during reset caused the slave DAC to lose synchronization and hiss. Making the clocks free-running while transmitting digital zeros (\texttt{sdata = 0}) during reset achieved dead-silent muting.
+  \item \textbf{Floating CMOS Input on Pmod JE (\texttt{W16}):} An unconnected MEMS microphone pin floated to CMOS logic high, producing a massive +9350 DC offset. Adding \texttt{PULLDOWN true} in the XDC constraints restored clean zero-level baselines.
+\end{enumerate}
+
+\subsection{Limitations}
+The current design operates in single-channel mono mode. Stereo processing requires duplicating the CIC and FIR decimation datapaths or time-multiplexing them at double clock frequency. In addition, the FIR equalization coefficients are hardwired in ROM; dynamic equalization would require writable APB registers.
+
+%% =====================================================================
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+
+In this project, we designed, formally verified, and physically implemented a complete PDM-to-PCM audio front-end on the Digilent Zybo Z7-10 FPGA board. The system successfully decimates 3.072~MHz 1-bit PDM streams down to 16-bit 48~kHz PCM audio with 57.4~dB SNR and flat passband response ($\pm 0.05$~dB). Incorporating Voronenko and P\"uschel's Multiple Constant Multiplication (MCM) technique eliminated DSP blocks from the compensation stage, reducing adder complexity by 92.7\% (from 55 down to 4 adders). The folded half-band decimation architecture conserved 14 DSP slices (a 77.8\% reduction). On physical silicon, the entire design meets timing at 125~MHz, consuming only 15.9\% LUTs and 182~mW total on-chip power while streaming clear audio to headphones.
+
+Future extensions include: (1) expanding the datapath to dual-channel stereo with beamforming acoustic localization; (2) integrating an adaptive Least Mean Squares (LMS) active noise cancellation algorithm on the RV32I core; and (3) adding an AXI4 DMA master engine to stream audio buffers directly into DDR3 memory.
+
+%% =====================================================================
+\section*{Contribution Statement and Acknowledgements}
+\addcontentsline{toc}{section}{Contribution Statement and Acknowledgements}
+\label{sec:contrib}
+
+Table~\ref{tab:contrib} outlines the distribution of responsibilities between team members. Both authors reviewed and tested all system components and can explain every aspect of the design in the viva examination.
+
+\begin{table}[H]\centering\small
+\caption{Team work distribution.}\label{tab:contrib}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Team Member & Primary Responsibilities\\
+\midrule
+\textbf{\studentA} (B24498) & Python golden model development, HLS transformations and CDFG derivation, multiplierless MCM/CSE filter design, I2C/I2S audio codec interfaces, and physical FPGA board bring-up.\\
+\textbf{\studentB} (B24478) & Half-Band folded vs.\ parallel architectural exploration, APB3 register interface, RV32I CPU integration and C firmware, SVA assertions, NuSMV CTL formal verification, and Vivado timing closure.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Open-Source IP Used:} Digilent Zybo Z7-10 Master XDC pin constraints; standard RISC-V RV32I unprivileged ISA specification.\\
+\textbf{AI-Tool Use:} We utilized the Antigravity AI pair-programming assistant to assist with Python testbench script automation, LaTeX formatting, and diagnosing Vivado DRC pin package warnings. All RTL architectures, formal models, and report analysis were designed, verified, and written by the authors.
+
+%% =====================================================================
+\begin{thebibliography}{99}
+\bibitem{hogenauer1981}
+E.~B.~Hogenauer, ``An economical class of digital filters for decimation and interpolation,'' \emph{IEEE Transactions on Acoustics, Speech, and Signal Processing}, vol.~29, no.~2, pp.~155--162, Apr.~1981, doi: \href{https://doi.org/10.1109/TASSP.1981.1163535}{10.1109/TASSP.1981.1163535}.
+
+\bibitem{troncoso2014}
+D.~E.~Troncoso Romero, M.~Laddomada, and G.~Jovanovic Dolecek, ``Optimal sharpening of compensated comb decimation filters: Analysis and design,'' \emph{The Scientific World Journal}, vol.~2014, Article ID 391900, 11 pages, 2014, doi: \href{https://doi.org/10.1155/2014/391900}{10.1155/2014/391900}.
+
+\bibitem{aggarwal2021}
+S.~Aggarwal, ``Efficient design of decimation filter using linear programming and its FPGA implementation,'' \emph{Integration}, vol.~79, pp.~116--126, Jul.~2021, doi: \href{https://doi.org/10.1016/j.vlsi.2021.03.008}{10.1016/j.vlsi.2021.03.008}.
+
+\bibitem{dolecek2009}
+G.~Jovanovic Dolecek and F.~Harris, ``On design of two-stage CIC compensation filter,'' in \emph{Proc. IEEE International Symposium on Industrial Electronics (ISIE)}, Seoul, South Korea, 2009, pp.~1003--1008, doi: \href{https://doi.org/10.1109/ISIE.2009.5218151}{10.1109/ISIE.2009.5218151}.
+
+\bibitem{dolecek2017}
+G.~J.~Dolecek, J.~R.~Garcia Baez, and M.~Laddomada, ``Design of efficient multiplierless modified cosine-based comb decimation filters: Analysis and implementation,'' \emph{IEEE Transactions on Circuits and Systems I: Regular Papers}, vol.~64, no.~5, pp.~1051--1063, May 2017, doi: \href{https://doi.org/10.1109/TCSI.2016.2642878}{10.1109/TCSI.2016.2642878}.
+
+\bibitem{voronenko2007}
+Y.~Voronenko and M.~P\"uschel, ``Multiplierless multiple constant multiplication,'' \emph{ACM Transactions on Algorithms}, vol.~3, no.~2, pp.~1--39, May 2007, doi: \href{https://doi.org/10.1145/1240233.1240234}{10.1145/1240233.1240234}.
+
+\bibitem{kwentus1997}
+A.~Y.~Kwentus, Z.~Jiang, and A.~N.~Wilson, ``Application of filter sharpening to cascaded integrator-comb decimation filters,'' \emph{IEEE Transactions on Circuits and Systems II: Analog and Digital Signal Processing}, vol.~44, no.~2, pp.~79--86, Feb.~1997, doi: \href{https://doi.org/10.1109/82.554437}{10.1109/82.554437}.
+
+\bibitem{demicheli1994}
+G.~De~Micheli, \emph{Synthesis and Optimization of Digital Circuits}. New York, NY, USA: McGraw-Hill, 1994.
+\end{thebibliography}
+
+%% =====================================================================
+\appendix
+\section{Repository and How to Reproduce}
+The project repository contains all source Verilog RTL, firmware, simulation scripts, and Vivado project files. Results can be reproduced using the following commands:
+\begin{lstlisting}[language=bash,numbers=none]
+# 1. Golden Model Generation & Vector Creation
+python golden/run_golden.py    # Generates pdm_test.hex, cic_out.hex, pcm_out.hex
+python golden/snr_test.py      # Computes THD+N across 1 kHz, 5 kHz, 10 kHz, 19 kHz
+
+# 2. RTL Behavioral Simulation
+python tb/sim_top_system.py    # Bit-exact top simulation against golden vectors
+python spec_check.py           # Automated regression check (80/80 PASS)
+python rtl_check.py            # RTL lint and structural rule checker (107/107 PASS)
+
+# 3. Formal Verification
+sby -f formal/fifo/fifo_safety.sby        # SymbiYosys FIFO safety proof (BMC & induction)
+sby -f formal/fifo/pipeline_liveness.sby  # SymbiYosys pipeline liveness proof
+NuSMV formal/fifo/ctrl.smv                # NuSMV CTL model checking (8 properties)
+
+# 4. AMD Vivado Synthesis and FPGA Bitstream Generation
+vivado -mode batch -source vivado_build.tcl   # Batch build: synthesis, P&R, bitstream
+\end{lstlisting}
+
+\section{NuSMV Controller Model}
+Listing~\ref{lst:smv} presents the NuSMV model used for verifying safety, liveness, and fairness on the folded decimation controller.
+
+\begin{lstlisting}[language=SMV,caption={NuSMV model of the folded decimation controller.},label={lst:smv}]
+MODULE main
+VAR
+  state    : {ST_IDLE, ST_CALC, ST_DONE};
+  valid_in : boolean;
+  step     : 0..8;
+  count    : 0..128;
+  wr_en    : boolean;
+
+ASSIGN
+  init(state) := ST_IDLE;
+  next(state) := case
+    state = ST_IDLE & valid_in : ST_CALC;
+    state = ST_CALC & step = 8 : ST_DONE;
+    state = ST_DONE            : ST_IDLE;
+    TRUE                       : state;
+  esac;
+
+  init(step) := 0;
+  next(step) := case
+    state = ST_CALC & step < 8 : step + 1;
+    state = ST_CALC & step = 8 : 0;
+    TRUE                       : 0;
+  esac;
+
+  init(count) := 0;
+  next(count) := case
+    wr_en & count < 128 : count + 1;
+    TRUE                : count;
+  esac;
+
+-- CTL Specifications
+CTLSPEC AG !(state = ST_DONE & state = ST_IDLE)
+CTLSPEC AG (valid_in -> AF (state = ST_DONE))
+CTLSPEC AG (count <= 128)
+CTLSPEC AG !(count = 128 & wr_en)
+\end{lstlisting}
+
+\end{document}

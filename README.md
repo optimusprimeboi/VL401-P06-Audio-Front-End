@@ -86,6 +86,9 @@ VL401_Group06_P06_Submission/
 │   ├── zybo_z7_top.bit         # Ready-to-program bitstream for Zybo Z7-10
 │   └── zybo_z7_audio.xsa       # Hardware handoff platform for Vitis/embedded software
 │
+├── docs/                       # Course project deliverables and technical reports
+│   ├── Project_P6_Deliverables_Report.md
+│   └── Weekly_Report_Lab_PDM_to_PCM.md
 ├── VL401_P06.pdf               # Complete 22-Page Final Project Academic Report (PDF)
 ├── VL401_G06_P06.pdf           # Primary Report Deliverable (Group 06)
 ├── build_project.tcl           # Automated Vivado project generator and bitstream builder

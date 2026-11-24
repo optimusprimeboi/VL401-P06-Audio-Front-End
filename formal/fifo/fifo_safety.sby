@@ -1,0 +1,15 @@
+[options]
+mode prove
+depth 20
+
+[engines]
+smtbmc
+
+[script]
+read -formal pcm_fifo.v
+read -formal fifo_safety.sv
+prep -top fifo_safety
+
+[files]
+../../rtl/fifo/pcm_fifo.v
+fifo_safety.sv

@@ -1,0 +1,15 @@
+[options]
+mode prove
+depth 35
+
+[engines]
+smtbmc
+
+[script]
+read -formal cic_decimator.v
+read -formal pipeline_liveness.sv
+prep -top pipeline_liveness
+
+[files]
+../../rtl/cic/cic_decimator.v
+pipeline_liveness.sv

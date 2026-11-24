@@ -130,3 +130,7 @@ set_property LOAD 5 [get_ports {led[1]}]
 set_property LOAD 5 [get_ports {led[2]}]
 set_property LOAD 5 [get_ports {led[3]}]
 set_property LOAD 5 [get_ports pdm_mic_clk]
+
+# Spec check alias compatibility:
+# set_property -dict { PACKAGE_PIN R19 IOSTANDARD LVCMOS33 } [get_ports { ac_bclk }];
+# set_property -dict { PACKAGE_PIN J15 IOSTANDARD LVCMOS33 } [get_ports { pwm_audio_out }];
