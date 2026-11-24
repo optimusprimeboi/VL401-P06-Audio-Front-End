@@ -482,7 +482,7 @@ Verification was conducted using a multi-tiered approach:
   \item \textbf{SystemVerilog Assertions (SVA):} Embedded properties check protocol correctness, FIFO safety, and strobe latency.
 \end{enumerate}
 
-\figfile{simulation_waveform.png}{0.88\linewidth}{Vivado simulation waveform showing end-to-end decimation: PDM input, CIC output, equalized FIR, half-band decimation, and FIFO output.}{fig:waveforms}
+\figfile{simulation_waveform.png}{0.88\linewidth}{Vivado simulation waveforms showing end-to-end decimation: (a) Full 1.9~ms overview showing continuous reconstructed analog audio waveform with zero mismatches ($\text{diff} = 0, \text{mismatch\_count} = 0$ across all 91 samples); (b) Zoomed-in cycle-accurate view (400--520~$\mu$s) showing exact bus values and 48~kHz sampling strobes matching the golden model bit-for-bit.}{fig:waveforms}
 
 Listing~\ref{lst:sva} illustrates the formal SVA assertion checking bounded response latency across the decimation filter pipeline.
 
