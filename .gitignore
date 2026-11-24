@@ -1,0 +1,22 @@
+# EDA / Vivado temporary files
+*.jou
+*.log
+*.wdb
+*.dcp
+*.dmp
+.Xil/
+xsim.dir/
+
+# Python temporary files
+__pycache__/
+*.pyc
+
+# LaTeX temporary files (keep PDF, TeX, PNG, PDF figures)
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+*.toc

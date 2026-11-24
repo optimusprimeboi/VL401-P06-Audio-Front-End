@@ -1,0 +1,15 @@
+========================================================================
+  P6 DELIVERABLE: CONSTANT-MULTIPLIER BLOCK OPTIMIZATION TABLE
+========================================================================
+Optimization Method                  | Adders   | Est. LUTs  | Savings   
+------------------------------------------------------------------------
+Naive CSD                            | 55       | 1320       | Baseline  
+Shared CSE / MCM                     | 4        | 96         | 92.7%     
+ESPRESSO / BDD Cube Extraction       | 17       | 408        | 69.1%     
+========================================================================
+
+SATURATION UNIT LOGIC OPTIMIZATION (ESPRESSO / BDD):
+  ESPRESSO Status : Heuristic Model
+  Positive Clamp  : ~sign & (|overflow_bits)
+  Negative Clamp  : sign & (~&overflow_bits)
+========================================================================

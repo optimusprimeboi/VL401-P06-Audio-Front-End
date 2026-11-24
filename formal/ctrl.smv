@@ -1,0 +1,35 @@
+MODULE main
+VAR
+  state    : {ST_IDLE, ST_CALC, ST_DONE};
+  valid_in : boolean;
+  step     : 0..8;
+  count    : 0..128;
+  wr_en    : boolean;
+
+ASSIGN
+  init(state) := ST_IDLE;
+  next(state) := case
+    state = ST_IDLE & valid_in : ST_CALC;
+    state = ST_CALC & step = 8 : ST_DONE;
+    state = ST_DONE            : ST_IDLE;
+    TRUE                       : state;
+  esac;
+
+  init(step) := 0;
+  next(step) := case
+    state = ST_CALC & step < 8 : step + 1;
+    state = ST_CALC & step = 8 : 0;
+    TRUE                       : 0;
+  esac;
+
+  init(count) := 0;
+  next(count) := case
+    wr_en & count < 128 : count + 1;
+    TRUE                : count;
+  esac;
+
+-- CTL Specifications
+CTLSPEC AG !(state = ST_DONE & state = ST_IDLE)
+CTLSPEC AG (valid_in -> AF (state = ST_DONE))
+CTLSPEC AG (count <= 128)
+CTLSPEC AG !(count = 128 & wr_en)
